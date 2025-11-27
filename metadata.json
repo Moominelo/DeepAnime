@@ -1,0 +1,5 @@
+{
+  "name": "DeepAnime",
+  "description": "Ultra-reliable anime recommendation engine using Gemini and Google Search Grounding to prevent hallucinations.",
+  "requestFramePermissions": []
+}
