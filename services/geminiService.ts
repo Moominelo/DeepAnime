@@ -1,24 +1,25 @@
+
 import { GoogleGenAI } from "@google/genai";
-import { AnimeRecommendation } from "../types";
+import { AnimeRecommendation, SearchMode } from "../types";
 
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SYSTEM_INSTRUCTION = `
-You are an expert Anime Recommendation Engine. 
+You are an expert Anime Recommendation Engine called "DeepAnime". 
 Your goal is to provide reliable, hallucination-free anime recommendations based on the user's request.
 
 RULES:
 1. You must output a valid JSON Array.
 2. Do NOT output any conversational text, markdown formatting (like \`\`\`json), or explanations outside the JSON array. Start with '[' and end with ']'.
-3. Use the 'googleSearch' tool to verify specific details (Year, Studio, Official Title) if you are not 100% sure.
-4. If the user asks for "dark", "funny", etc., respect that mood accurately.
+3. Use the 'googleSearch' tool to verify the titles and release years.
+4. **IMAGES**: Leave the "imageUrl" and "score" fields as empty strings ("") or null. We will fetch these from the official API in a post-processing step. Your job is to get the TITLE exactly right so the API can find it.
 5. Provide 3 to 5 recommendations.
 
 JSON STRUCTURE:
 [
   {
-    "title": "Official English or Main Title",
+    "title": "Official Main Title (Romaji or English)",
     "romajiTitle": "Hepburn Romaji Title",
     "year": "YYYY",
     "studio": "Studio Name",
@@ -26,29 +27,71 @@ JSON STRUCTURE:
     "format": "TV | Movie | OVA",
     "synopsis": "A concise, factual synopsis verified by database data.",
     "reason": "Why this specifically fits the user's request.",
-    "imageUrl": "https://cdn.myanimelist.net/images/anime/...", // Use a real URL found via search if possible, or leave empty string if unsure. Do not invent URLs.
-    "sourceUrl": "https://myanimelist.net/anime/..." // Link to MAL or AniList page.
+    "imageUrl": "", 
+    "sourceUrl": "", 
+    "score": "" 
   }
 ]
 `;
 
-export const getAnimeRecommendations = async (userPrompt: string): Promise<AnimeRecommendation[]> => {
+/**
+ * Fetches official metadata (Image, Score, URL) from Jikan API (MyAnimeList)
+ * to ensure 100% pertinent images and valid links.
+ */
+const fetchMetadataFromJikan = async (title: string, year: string): Promise<Partial<AnimeRecommendation>> => {
+  try {
+    // Search Jikan for the anime
+    const response = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`);
+    const data = await response.json();
+
+    if (data.data && data.data.length > 0) {
+      const anime = data.data[0];
+      return {
+        imageUrl: anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url || "",
+        sourceUrl: anime.url,
+        score: anime.score ? `${anime.score}/10` : "N/A",
+        // We can optionally correct the title or year here if we wanted to be super strict
+      };
+    }
+    return {};
+  } catch (error) {
+    console.warn(`Jikan API failed for ${title}:`, error);
+    return {};
+  }
+};
+
+/**
+ * Delays execution for a specified number of milliseconds.
+ * Used to prevent rate limiting when calling Jikan API.
+ */
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const getAnimeRecommendations = async (userPrompt: string, mode: SearchMode = 'strict'): Promise<AnimeRecommendation[]> => {
   try {
     const model = 'gemini-2.5-flash';
     
+    // Adjust temperature based on creativity mode
+    const temperature = mode === 'creative' ? 0.85 : 0.1;
+
+    let modifiedPrompt = userPrompt;
+    if (mode === 'creative') {
+      modifiedPrompt += "\n\n(MODE: CREATIVE. Focus on hidden gems, underrated titles, or unique artistic choices matching the vibe. Avoid the top 10 most popular anime unless they fit perfectly.)";
+    } else {
+      modifiedPrompt += "\n\n(MODE: STRICT. Stick to highly rated, widely recognized, and factually accurate matches.)";
+    }
+
     const response = await ai.models.generateContent({
       model: model,
       contents: [
         {
           role: 'user',
-          parts: [{ text: userPrompt }]
+          parts: [{ text: modifiedPrompt }]
         }
       ],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         tools: [{ googleSearch: {} }],
-        // NOTE: responseMimeType: 'application/json' is NOT supported when tools are used.
-        // We must parse the text manually.
+        temperature: temperature, 
       }
     });
 
@@ -59,8 +102,6 @@ export const getAnimeRecommendations = async (userPrompt: string): Promise<Anime
     }
 
     // Manual JSON Extraction
-    // The model might say "Here is your JSON: [...]" or wrap it in ```json ... ```
-    // We strictly look for the first '[' and the last ']'
     const firstBracket = text.indexOf('[');
     const lastBracket = text.lastIndexOf(']');
 
@@ -70,15 +111,34 @@ export const getAnimeRecommendations = async (userPrompt: string): Promise<Anime
     }
 
     const jsonString = text.substring(firstBracket, lastBracket + 1);
+    let recommendations: AnimeRecommendation[];
 
     try {
-      const data: AnimeRecommendation[] = JSON.parse(jsonString);
-      return data;
+      recommendations = JSON.parse(jsonString);
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
-      console.error("Extracted String:", jsonString);
       throw new Error("Failed to parse the recommendation data.");
     }
+
+    // ENRICHMENT STEP: Fetch real images and scores from Jikan API
+    // We process them sequentially or with small delays to be nice to the API rate limits
+    const enrichedRecommendations = await Promise.all(
+      recommendations.map(async (rec, index) => {
+        // Add a small staggered delay to avoid hitting Jikan rate limits instantly
+        await delay(index * 250); 
+        
+        const metadata = await fetchMetadataFromJikan(rec.title, rec.year);
+        
+        return {
+          ...rec,
+          imageUrl: metadata.imageUrl || rec.imageUrl || "", // Prioritize Jikan, fall back to AI (which is empty), then empty string
+          score: metadata.score || rec.score || "N/A",
+          sourceUrl: metadata.sourceUrl || `https://myanimelist.net/anime.php?q=${encodeURIComponent(rec.title)}`
+        };
+      })
+    );
+
+    return enrichedRecommendations;
 
   } catch (error) {
     console.error("Gemini Service Error:", error);

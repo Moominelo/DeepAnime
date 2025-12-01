@@ -1,11 +1,13 @@
+
 import React, { useState } from 'react';
-import { Sparkles, Search, AlertCircle, Loader2, BookOpen } from 'lucide-react';
+import { Sparkles, Search, AlertCircle, Loader2, BookOpen, BrainCircuit, ShieldCheck } from 'lucide-react';
 import { getAnimeRecommendations } from './services/geminiService';
-import { SearchState } from './types';
+import { SearchState, SearchMode } from './types';
 import AnimeCard from './components/AnimeCard';
 
 const App: React.FC = () => {
   const [input, setInput] = useState<string>('');
+  const [mode, setMode] = useState<SearchMode>('strict');
   const [state, setState] = useState<SearchState>({
     isLoading: false,
     error: null,
@@ -20,7 +22,7 @@ const App: React.FC = () => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const data = await getAnimeRecommendations(input);
+      const data = await getAnimeRecommendations(input, mode);
       setState({
         isLoading: false,
         error: null,
@@ -77,17 +79,19 @@ const App: React.FC = () => {
             </span>
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto mb-8 text-lg">
-            Décrivez vos goûts, votre humeur ou vos favoris. L'Oracle consulte les bases de données officielles (MAL, AniList) pour éviter toute hallucination.
+            Décrivez vos goûts, votre humeur ou vos favoris. L'Oracle consulte les bases de données officielles pour éviter toute hallucination.
           </p>
 
           <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto group">
+            
+            {/* Input Area */}
             <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-500"></div>
-            <div className="relative bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl p-2 flex flex-col md:flex-row gap-2">
+            <div className="relative bg-slate-900 rounded-2xl border border-slate-700 shadow-2xl p-2 flex flex-col gap-2">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ex: Je cherche un thriller psychologique sombre comme Death Note, mais avec un cadre de science-fiction..."
-                className="w-full bg-transparent text-white placeholder-slate-500 p-4 outline-none resize-none h-24 md:h-auto text-base"
+                className="w-full bg-transparent text-white placeholder-slate-500 p-4 outline-none resize-none h-24 text-base"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -95,20 +99,51 @@ const App: React.FC = () => {
                   }
                 }}
               />
-              <button
-                type="submit"
-                disabled={state.isLoading || !input.trim()}
-                className="md:w-32 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all p-4 md:p-0 h-12 md:h-auto"
-              >
-                {state.isLoading ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : (
-                  <>
-                    <Search size={20} />
-                    <span className="md:hidden">Chercher</span>
-                  </>
-                )}
-              </button>
+              
+              <div className="flex flex-col md:flex-row justify-between items-center px-2 pb-2 gap-3">
+                {/* Creativity Toggle */}
+                <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 w-full md:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setMode('strict')}
+                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                      mode === 'strict' 
+                      ? 'bg-slate-700 text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <ShieldCheck size={14} />
+                    Fiable
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('creative')}
+                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                      mode === 'creative' 
+                      ? 'bg-indigo-600 text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <BrainCircuit size={14} />
+                    Découverte
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={state.isLoading || !input.trim()}
+                  className="w-full md:w-auto px-6 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/20"
+                >
+                  {state.isLoading ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <>
+                      <Search size={18} />
+                      <span>Chercher</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
 
@@ -141,7 +176,9 @@ const App: React.FC = () => {
           <section className="animate-fadeIn">
             <div className="flex items-center gap-2 mb-6">
               <BookOpen className="text-indigo-400" size={20} />
-              <h3 className="text-xl font-bold text-white">Résultats Vérifiés</h3>
+              <h3 className="text-xl font-bold text-white">
+                Résultats {mode === 'strict' ? 'Vérifiés' : 'Découverte'}
+              </h3>
               <div className="h-px bg-slate-800 flex-grow ml-4"></div>
             </div>
             
