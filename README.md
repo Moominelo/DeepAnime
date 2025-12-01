@@ -7,27 +7,8 @@ DeepAnime est un moteur de recommandation d'anime de nouvelle génération. Cont
 
 L'application présente les résultats sous forme de "Cartes Vérifiées". Voici à quoi ressemble une recommandation type dans l'interface :
 
-```text
-+-----------------------------------------------------------------------+
-|                                                                       |
-|   [  AFFICHE OFFICIELLE  ]   MONSTER                                  |
-|   (Source: API Jikan     |   Madhouse  •  2004  •  TV (74 eps)          |
-|    MyAnimeList)          |   Tags: Psychologique, Thriller, Seinen      |
-|                          |                                              |
-|   ★ 8.9/10               |   ℹ️ SYNOPSIS VÉRIFIÉ                        |
-|                          |   Kenzou Tenma, un neurochirurgien d'élite   |
-|                          |   japonais exerçant en Allemagne, voit sa    |
-|                          |   vie basculer lorsqu'il choisit de sauver   |
-|                          |   un jeune garçon plutôt que le maire...     |
-|                          |                                              |
-|                          |   💡 POURQUOI JE TE LE RECOMMANDE            |
-|                          |   "Basé sur ta demande d'une intrigue        |
-|                          |   sombre et réaliste, ce titre est la        |
-|                          |   référence absolue du genre."               |
-|                          |                                              |
-|                          |   [ Bouton: Fiche Officielle MAL ]           |
-|                                                                       |
-+-----------------------------------------------------------------------+
+<img width="932" height="766" alt="{8307D569-8FDB-4056-9658-64F1CF6BADC6}" src="https://github.com/user-attachments/assets/764d9a6b-8ea5-4a86-b9e0-fad9787af5c3" />
+
 ```
 
 ## 🛠️ Comment c'est fait (Architecture Hybride)
